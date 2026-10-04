@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>星球宇宙 · Three.js 自主实践</title>
+  <style>
+    body { margin: 0; overflow: hidden; font-family: "Microsoft YaHei", sans-serif; }
+    #hud {
+      position: fixed; left: 14px; top: 14px; color: #cde6ff; z-index: 10;
+      font-size: 14px; line-height: 1.7; pointer-events: none;
+      text-shadow: 0 0 6px rgba(0,0,0,0.8);
+    }
+  </style>
+</head>
+<body>
+  <div id="hud">
+    🌌 星球宇宙<br>
+    <span style="font-size:12px;opacity:.85">鼠标左键拖拽旋转 · 滚轮缩放 · 右键平移</span>
+  </div>
+  <!-- Three.js 核心与轨道控制器使用 CDN 在线引入 -->
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <script>
+    // ---------- 1. 场景 ----------
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x05070f);
+
+    // ---------- 2. 相机 ----------
+    const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 2000);
+    camera.position.set(0, 22, 34);
+    camera.lookAt(0, 0, 0);
+
+    // ---------- 3. 渲染器 ----------
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    // 轨道控制器：鼠标拖拽旋转 / 滚轮缩放，交互能力
+    const controls = new THREE.OrbitControls(camera, renderer.domElement);
+
+    // ---------- 4. 背景星空（Points 粒子） ----------
+    const starCount = 1500;
+    const starGeo = new THREE.BufferGeometry();
+    const starPos = new Float32Array(starCount * 3);
+    for (let i = 0; i < starCount; i++) {
+      starPos[i * 3] = (Math.random() - 0.5) * 600;
+      starPos[i * 3 + 1] = (Math.random() - 0.5) * 600;
+      starPos[i * 3 + 2] = (Math.random() - 0.5) * 600;
+    }
+    starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+    const stars = new THREE.Points(
+      starGeo,
+      new THREE.PointsMaterial({ color: 0xffffff, size: 0.35 })
+    );
+    scene.add(stars);
+
+    // ---------- 5. 光源：环境光打底 + 太阳点光源造型 ----------
+    scene.add(new THREE.AmbientLight(0x222244, 0.8));
+    const sunLight = new THREE.PointLight(0xffffff, 1.6, 200);
+    sunLight.position.set(0, 0, 0);
+    scene.add(sunLight);
+
+    // ---------- 6. 太阳（MeshBasicMaterial 自发光，不受光照影响） ----------
+    const sun = new THREE.Mesh(
+      new THREE.SphereGeometry(4, 48, 48),
+      new THREE.MeshBasicMaterial({ color: 0xffcc33 })
+    );
+    scene.add(sun);
+
+    // ---------- 7. 地球（绕太阳公转 + 自转 + 轴倾斜，并带一颗月球） ----------
+    const earthOrbit = new THREE.Group();        // 地球公转轨道组（绕 Y 轴旋转）
+    scene.add(earthOrbit);
+
+    const earth = new THREE.Mesh(
+      new THREE.SphereGeometry(1.6, 32, 32),
+      new THREE.MeshStandardMaterial({
+        color: 0x3f7fd3,
+        metalness: 0.1,
+        roughness: 0.9
+      })
+    );
+    earth.position.set(9, 0, 0);
+    earth.rotation.z = 0.41;                     // 地轴倾斜 23.5°（约 0.41 弧度）
+    earthOrbit.add(earth);
+
+    // 月球围绕地球转
+    const moon = new THREE.Mesh(
+      new THREE.SphereGeometry(0.5, 24, 24),
+      new THREE.MeshStandardMaterial({ color: 0xcccccc, roughness: 1 })
+    );
+    moon.position.set(1.6, 0, 0);
+    earth.add(moon);
+    const moonOrbit = new THREE.Group();
+    earth.add(moonOrbit);
+    moonOrbit.add(moon);
+    moon.position.set(2.4, 0, 0);                // 月球轨道半径
+
+    // ---------- 8. 带光环的星球（Saturn 土星风格） ----------
+    const saturnOrbit = new THREE.Group();
+    scene.add(saturnOrbit);
+    const saturn = new THREE.Mesh(
+      new THREE.SphereGeometry(2.4, 32, 32),
+      new THREE.MeshStandardMaterial({ color: 0xd8a24b, roughness: 0.8 })
+    );
+    saturn.position.set(20, 0, 0);
+    saturn.rotation.x = 0.9;                     // 光环略微倾斜
+    saturnOrbit.add(saturn);
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(3.2, 4.6, 48),
+      new THREE.MeshBasicMaterial({ color: 0xcfa064, side: THREE.DoubleSide })
+    );
+    ring.rotation.x = Math.PI / 2;               // 光环平放
+    saturn.add(ring);
+
+    // ---------- 9. 小行星带：若干小正方体绕太阳更远处转 ----------
+    const asteroidOrbit = new THREE.Group();
+    scene.add(asteroidOrbit);
+    for (let i = 0; i < 18; i++) {
+      const a = (i / 18) * Math.PI * 2;
+      const size = 0.3 + Math.random() * 0.4;
+      const rock = new THREE.Mesh(
+        new THREE.BoxGeometry(size, size, size),
+        new THREE.MeshStandardMaterial({ color: 0x8a8f98, roughness: 1 })
+      );
+      rock.position.set(Math.cos(a) * 14, (Math.random() - 0.5) * 0.8, Math.sin(a) * 14);
+      asteroidOrbit.add(rock);
+    }
+
+    // ---------- 10. 动画循环：公转 + 自转 + 光环 ----------
+    const clock = new THREE.Clock();
+    const animate = () => {
+      requestAnimationFrame(animate);
+      const t = clock.getElapsedTime();
+
+      sun.rotation.y += 0.002;
+      stars.rotation.y += 0.0002;
+      earthOrbit.rotation.y += 0.01;             // 地球公转
+      earth.rotation.y += 0.05;                  // 地球自转
+      moonOrbit.rotation.y += 0.06;              // 月球公转
+      saturnOrbit.rotation.y += 0.005;           // 土星公转
+      saturn.rotation.y += 0.03;                 // 土星自转
+      asteroidOrbit.rotation.y += 0.004;         // 小行星带转动
+
+      controls.update();
+      renderer.render(scene, camera);
+    };
+    animate();
+
+    // ---------- 11. 窗口适配：相机与渲染器同步更新 ----------
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+  </script>
+</body>
+</html>
