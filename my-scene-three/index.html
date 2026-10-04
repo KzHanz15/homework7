@@ -127,7 +127,31 @@
       asteroidOrbit.add(rock);
     }
 
-    // ---------- 10. 动画循环：公转 + 自转 + 光环 ----------
+    // ---------- 10. 点击交互研究：Raycaster 射线检测，点击物体变色 ----------
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+    // 需要参与拾取的对象
+    const pickList = [sun, earth, moon, saturn, ring, ...asteroidOrbit.children];
+    renderer.domElement.addEventListener('click', (event) => {
+      // 1. 把鼠标坐标由屏幕像素换算为 NDC（范围 -1 ~ 1）
+      mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+      mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+      // 2. 从相机位置发射一条经过该点的射线
+      raycaster.setFromCamera(mouse, camera);
+      // 3. 计算射线与场景中物体的交点，取最近者
+      const hits = raycaster.intersectObjects(pickList);
+      if (hits.length > 0) {
+        const obj = hits[0].object;
+        if (obj.material && obj.material.color) {
+          obj.material.color.set(0xffd54f); // 命中后高亮为亮黄色
+        }
+      }
+    });
+
+    // 暴露关键对象到 window，便于课堂讲解与交互验证
+    window.__solar = { sun, earth, moon, saturn, ring, raycaster, camera, scene };
+
+    // ---------- 11. 动画循环：公转 + 自转 + 光环 ----------
     const clock = new THREE.Clock();
     const animate = () => {
       requestAnimationFrame(animate);
